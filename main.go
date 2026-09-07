@@ -1,14 +1,23 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+	"github.com/zannunakiz/eventprac/config"
 	"github.com/zannunakiz/eventprac/models"
 )
 
 func main() {
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	config.ConnectDB()
 
 	server := gin.Default()
 
@@ -48,9 +57,7 @@ func createEvent(context *gin.Context) {
 		})
 	}
 	// dummy
-	event.Id = 1
 	event.UserId = 1
-	event.DateTime = time.Now()
 
 	// Save inputan
 	event.Save()
