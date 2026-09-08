@@ -18,8 +18,6 @@ func CreateEvent(context *gin.Context) {
 		return
 	}
 
-	event.UserId = 1
-
 	if err := config.DB.Create(&event).Error; err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),

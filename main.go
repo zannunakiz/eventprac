@@ -29,6 +29,9 @@ func main() {
 		api.POST("/events", controllers.CreateEvent)
 		api.PATCH("events/:id", controllers.UpdateEvent)
 		api.DELETE("events/:id", controllers.DeleteEvent)
+
+		api.POST("/user/register", controllers.RegisterUser)
+		api.POST("/user/login", controllers.LoginUser)
 	}
 
 	// http://localhost:8080

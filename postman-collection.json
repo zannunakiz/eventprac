@@ -6,148 +6,226 @@
   },
   "item": [
     {
-      "name": "Get Events",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/events",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "events"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Get Event By ID",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/events/:id",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "events",
-            ":id"
-          ],
-          "variable": [
-            {
-              "key": "id",
-              "value": "1",
-              "description": "ID dari event"
+      "name": "User",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"johndoe@example.com\",\n  \"password\": \"secret123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user",
+                "register"
+              ]
             }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Create Event",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json",
-            "type": "text"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"Tech Conference 2026\",\n  \"description\": \"Annual Go & Microservices Gathering\",\n  \"location\": \"Jakarta\",\n  \"datetime\": \"2026-09-08T15:54:55+07:00\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          },
+          "response": []
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/events",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "events"
-          ]
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"johndoe@example.com\",\n  \"password\": \"secret123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user",
+                "login"
+              ]
+            }
+          },
+          "response": []
         }
-      },
-      "response": []
+      ]
     },
     {
-      "name": "Update Event",
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json",
-            "type": "text"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"Tech Conference 2026 Updated\",\n  \"description\": \"Updated Gathering Description\",\n  \"location\": \"Bandung\",\n  \"datetime\": \"2026-09-08T15:54:55+07:00\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
+      "name": "Events",
+      "item": [
+        {
+          "name": "Get Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
             }
-          }
+          },
+          "response": []
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/events/:id",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "events",
-            ":id"
-          ],
-          "variable": [
-            {
-              "key": "id",
-              "value": "1",
-              "description": "ID dari event yang ingin di-update"
+        {
+          "name": "Get Event By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "ID dari event"
+                }
+              ]
             }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Delete Event",
-      "request": {
-        "method": "DELETE",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/events/:id",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "events",
-            ":id"
-          ],
-          "variable": [
-            {
-              "key": "id",
-              "value": "1",
-              "description": "ID dari event yang ingin dihapus"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tech Conference 2026\",\n  \"description\": \"Annual Go & Microservices Gathering\",\n  \"location\": \"Jakarta\",\n  \"datetime\": \"2026-09-08T15:54:55+07:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
             }
-          ]
+          },
+          "response": []
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tech Conference 2026 Updated\",\n  \"description\": \"Updated Gathering Description\",\n  \"location\": \"Bandung\",\n  \"datetime\": \"2026-09-08T15:54:55+07:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "ID dari event yang ingin di-update"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Event",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "ID dari event yang ingin dihapus"
+                }
+              ]
+            }
+          },
+          "response": []
         }
-      },
-      "response": []
+      ]
     }
   ],
   "variable": [
