@@ -9,6 +9,8 @@ import (
 )
 
 func CreateEvent(context *gin.Context) {
+	userID, _ := context.Get("userId")
+
 	var event models.Event
 	err := context.ShouldBindJSON(&event)
 	if err != nil {
@@ -18,17 +20,14 @@ func CreateEvent(context *gin.Context) {
 		return
 	}
 
-	if err := config.DB.Create(&event).Error; err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
+	event.UserID = userID.(int)
 
+	config.DB.Create(&event)
 	context.JSON(http.StatusCreated, gin.H{
 		"message": "data berhasil dibuat",
 		"event":   event,
 	})
+	return
 }
 
 func GetEvents(context *gin.Context) {
@@ -60,6 +59,8 @@ func GetEventById(context *gin.Context) {
 }
 
 func UpdateEvent(context *gin.Context) {
+	userID, _ := context.Get("userId")
+
 	var event models.Event
 	paramsId := context.Param("id")
 
@@ -72,6 +73,15 @@ func UpdateEvent(context *gin.Context) {
 		return
 	}
 
+	// Validate apakah user creator of the event
+	if event.UserID != userID.(int) {
+		context.JSON(http.StatusForbidden, gin.H{
+			"error": "You are not the event creator",
+		})
+		return
+	}
+
+	// Input to DB
 	var input models.Event
 	err := context.ShouldBindJSON(&input)
 	if err != nil {
@@ -89,6 +99,8 @@ func UpdateEvent(context *gin.Context) {
 }
 
 func DeleteEvent(context *gin.Context) {
+	userID, _ := context.Get("userId")
+
 	var event models.Event
 	paramsId := context.Param("id")
 
@@ -96,6 +108,14 @@ func DeleteEvent(context *gin.Context) {
 	if eventData != nil {
 		context.JSON(http.StatusNotFound, gin.H{
 			"error": "Event tidak ditemukan",
+		})
+		return
+	}
+
+	// Validate apakah user creator of the event
+	if event.UserID != userID.(int) {
+		context.JSON(http.StatusForbidden, gin.H{
+			"error": "You are not the event creator",
 		})
 		return
 	}

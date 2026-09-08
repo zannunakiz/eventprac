@@ -7,6 +7,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/zannunakiz/eventprac/config"
 	"github.com/zannunakiz/eventprac/controllers"
+	"github.com/zannunakiz/eventprac/middlewares"
 )
 
 func main() {
@@ -26,12 +27,18 @@ func main() {
 	{
 		api.GET("/events", controllers.GetEvents)
 		api.GET("/events/:id", controllers.GetEventById)
-		api.POST("/events", controllers.CreateEvent)
-		api.PATCH("events/:id", controllers.UpdateEvent)
-		api.DELETE("events/:id", controllers.DeleteEvent)
-
 		api.POST("/user/register", controllers.RegisterUser)
 		api.POST("/user/login", controllers.LoginUser)
+
+		// Middleware
+		protected := api.Group("/")
+		protected.Use(middlewares.RequiredAuth())
+		{
+			protected.GET("/user/me", controllers.GetCurrentUser)
+			protected.POST("/events", controllers.CreateEvent)
+			protected.PATCH("events/:id", controllers.UpdateEvent)
+			protected.DELETE("events/:id", controllers.DeleteEvent)
+		}
 	}
 
 	// http://localhost:8080

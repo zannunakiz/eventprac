@@ -35,6 +35,14 @@ func RegisterUser(context *gin.Context) {
 		return
 	}
 
+	var existingUser models.User
+	if config.DB.Where("email = ?", input.Email).First(&existingUser).Error == nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"error": "Email mungkin sudah terdaftar",
+		})
+		return
+	}
+
 	// Hash Password
 	hashedPassword, errHash := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if errHash != nil {
@@ -129,4 +137,37 @@ func LoginUser(context *gin.Context) {
 		},
 	})
 
+}
+
+func GetCurrentUser(context *gin.Context) {
+	// Ambil UserId
+	userId, exists := context.Get("userId")
+	if !exists {
+		context.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Not Authenticated",
+		})
+		return
+	}
+
+	// Ambil data User
+	var user models.User
+
+	userData := config.DB.Select("id", "name", "email").First(&user, userId).Error
+	if userData != nil {
+		context.JSON(http.StatusNotFound, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	// Return
+
+	context.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":     user.ID,
+			"name":   user.Name,
+			"email":  user.Email,
+			"events": user.Events,
+		},
+	})
 }

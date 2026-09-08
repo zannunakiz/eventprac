@@ -74,6 +74,58 @@
               ]
             }
           },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeded', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const response = pm.response.json();",
+                  "pm.test('JWT token returned', function () {",
+                  "    pm.expect(response.token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "",
+                  "if (response.token) {",
+                  "    pm.globals.set('jwtToken', response.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+        ,
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user",
+                "me"
+              ]
+            }
+          },
           "response": []
         }
       ]
@@ -105,21 +157,14 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/events/:id",
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "events",
-                ":id"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "1",
-                  "description": "ID dari event"
-                }
+                "{{eventId}}"
               ]
             }
           },
@@ -145,6 +190,16 @@
                 }
               }
             },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "url": {
               "raw": "{{baseUrl}}/api/events",
               "host": [
@@ -156,6 +211,29 @@
               ]
             }
           },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Event created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const response = pm.response.json();",
+                  "const eventId = response.event && (response.event.ID || response.event.id);",
+                  "pm.test('Event ID returned', function () {",
+                  "    pm.expect(eventId).to.exist;",
+                  "});",
+                  "",
+                  "if (eventId) {",
+                  "    pm.globals.set('eventId', String(eventId));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "response": []
         },
         {
@@ -178,22 +256,25 @@
                 }
               }
             },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "url": {
-              "raw": "{{baseUrl}}/api/events/:id",
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "events",
-                ":id"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "1",
-                  "description": "ID dari event yang ingin di-update"
-                }
+                "{{eventId}}"
               ]
             }
           },
@@ -204,22 +285,25 @@
           "request": {
             "method": "DELETE",
             "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "url": {
-              "raw": "{{baseUrl}}/api/events/:id",
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "events",
-                ":id"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "1",
-                  "description": "ID dari event yang ingin dihapus"
-                }
+                "{{eventId}}"
               ]
             }
           },
