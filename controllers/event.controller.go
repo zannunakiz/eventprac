@@ -88,5 +88,23 @@ func UpdateEvent(context *gin.Context) {
 		"message": "Data Tampil Detail Event",
 		"event":   event,
 	})
+}
 
+func DeleteEvent(context *gin.Context) {
+	var event models.Event
+	paramsId := context.Param("id")
+
+	var eventData = config.DB.First(&event, paramsId).Error
+	if eventData != nil {
+		context.JSON(http.StatusNotFound, gin.H{
+			"error": "Event tidak ditemukan",
+		})
+		return
+	}
+
+	// Unscoped() untuk total delete, instead of soft delete.
+	config.DB.Unscoped().Delete(&event)
+	context.JSON(http.StatusOK, gin.H{
+		"message": "Data (id: " + paramsId + ") berhasil di delete",
+	})
 }

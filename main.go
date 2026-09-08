@@ -28,6 +28,7 @@ func main() {
 		api.GET("/events/:id", controllers.GetEventById)
 		api.POST("/events", controllers.CreateEvent)
 		api.PATCH("events/:id", controllers.UpdateEvent)
+		api.DELETE("events/:id", controllers.DeleteEvent)
 	}
 
 	// http://localhost:8080

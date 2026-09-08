@@ -122,6 +122,32 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "Delete Event",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/events/:id",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "events",
+            ":id"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "1",
+              "description": "ID dari event yang ingin dihapus"
+            }
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "variable": [
