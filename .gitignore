@@ -36,3 +36,5 @@ go.work.sum
 bin/
 dist/
 *.log
+
+E2E-api-refrence.py
