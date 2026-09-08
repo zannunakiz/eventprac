@@ -97,8 +97,7 @@
             }
           ],
           "response": []
-        }
-        ,
+        },
         {
           "name": "Get Current User",
           "request": {
@@ -174,21 +173,36 @@
           "name": "Create Event",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
+            "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Tech Conference 2026\",\n  \"description\": \"Annual Go & Microservices Gathering\",\n  \"location\": \"Jakarta\",\n  \"datetime\": \"2026-09-08T15:54:55+07:00\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Tech Conference 2026",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Annual Go & Microservices Gathering",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Jakarta",
+                  "type": "text"
+                },
+                {
+                  "key": "datetime",
+                  "value": "2026-09-08T15:54:55+07:00",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
                 }
-              }
+              ]
             },
             "auth": {
               "type": "bearer",
@@ -240,21 +254,36 @@
           "name": "Update Event",
           "request": {
             "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
+            "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Tech Conference 2026 Updated\",\n  \"description\": \"Updated Gathering Description\",\n  \"location\": \"Bandung\",\n  \"datetime\": \"2026-09-08T15:54:55+07:00\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Tech Conference 2026 Updated",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Updated Gathering Description",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Bandung",
+                  "type": "text"
+                },
+                {
+                  "key": "datetime",
+                  "value": "2026-09-08T15:54:55+07:00",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
                 }
-              }
+              ]
             },
             "auth": {
               "type": "bearer",
