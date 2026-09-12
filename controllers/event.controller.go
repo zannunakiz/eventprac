@@ -31,7 +31,7 @@ func CreateEvent(c *gin.Context) {
 	userIDValue, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak ditemukan",
+			"error": "User ID not found",
 		})
 		return
 	}
@@ -39,84 +39,86 @@ func CreateEvent(c *gin.Context) {
 	userID, ok := userIDValue.(int)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak valid",
+			"error": "User ID is invalid",
 		})
 		return
 	}
 
-	// 2. Get image file from form-data
-	file, header, err := c.Request.FormFile("image")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Gambar wajib di-upload",
-			"error":   err.Error(),
-		})
-		return
-	}
-	defer file.Close()
+	// 2. Get image file from form-data (optional)
+	file, header, errFile := c.Request.FormFile("image")
 
-	// 3. Upload image to ImageKit
+	var imageURL, imageID string
+	hasImage := false
 	ik := initImageKit()
 
-	uploadRes, err := ik.Files.Upload(
-		c.Request.Context(),
-		imagekit.FileUploadParams{
-			File:     file,
-			FileName: header.Filename,
-		},
-	)
+	if errFile == nil {
+		defer file.Close()
 
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Gagal upload gambar ke ImageKit",
-			"error":   err.Error(),
-		})
-		return
+		uploadRes, errUpload := ik.Files.Upload(
+			c.Request.Context(),
+			imagekit.FileUploadParams{
+				File:     file,
+				FileName: header.Filename,
+			},
+		)
+
+		if errUpload != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Failed to upload image to ImageKit",
+				"error":   errUpload.Error(),
+			})
+			return
+		}
+
+		imageURL = uploadRes.URL
+		imageID = uploadRes.FileID
+		hasImage = true
 	}
 
-	// 4. Parse datetime string
+	// 3. Parse datetime string
 	datetimeStr := c.PostForm("datetime")
 
 	parsedTime, err := time.Parse(time.RFC3339, datetimeStr)
 	if err != nil {
-		// Cleanup uploaded image on parse error
-		if uploadRes.FileID != "" {
+		if hasImage {
 			_ = ik.Files.Delete(
 				c.Request.Context(),
-				uploadRes.FileID,
+				imageID,
 			)
 		}
 
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Format datetime tidak valid",
+			"message": "Invalid datetime format",
 			"error":   err.Error(),
 		})
 		return
 	}
 
-	// 5. Build event model
+	// 4. Build event model
 	event := models.Event{
 		Name:        c.PostForm("name"),
 		Description: c.PostForm("description"),
 		Location:    c.PostForm("location"),
 		Datetime:    parsedTime,
-		Image:       uploadRes.URL,
-		ImageID:     uploadRes.FileID,
 		UserID:      userID,
 	}
 
-	// 6. Save event to DB
+	if hasImage {
+		event.Image = &imageURL
+		event.ImageID = &imageID
+	}
+
+	// 5. Save event to DB
 	if err := config.DB.Create(&event).Error; err != nil {
-		// Cleanup uploaded image on DB error
-		if event.ImageID != "" {
+		if hasImage {
 			_ = ik.Files.Delete(
 				c.Request.Context(),
-				event.ImageID,
+				imageID,
 			)
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Gagal menyimpan event ke database",
+			"message": "Failed to save event to database",
 			"error":   err.Error(),
 		})
 		return
@@ -124,7 +126,7 @@ func CreateEvent(c *gin.Context) {
 
 	// 7. Return success response
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Data berhasil dibuat",
+		"message": "Event created successfully",
 		"event":   event,
 	})
 }
@@ -133,20 +135,20 @@ func CreateEvent(c *gin.Context) {
 func GetEvents(c *gin.Context) {
 	var events []models.Event
 
-	// 1. Inisiasi dasar query di gorm
+	// 1. Base query initialization in gorm
 	query := config.DB.Model(&models.Event{})
 
-	// 2. Tangkap fungsi filter by query
+	// 2. Filter by query parameter
 	search := c.Query("search")
 	if search != "" {
 		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+search+"%", "%"+search+"%")
 	}
 
-	// 3. Pagination (hitung total data sebelum di limit)
+	// 3. Pagination (count total rows before limit)
 	var totalRows int64
 	query.Count(&totalRows)
 
-	// 4. Tangkap parameter query dan masukan nilai default
+	// 4. Get query parameters and set defaults
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "5")
 
@@ -160,24 +162,24 @@ func GetEvents(c *gin.Context) {
 		limit = 6
 	}
 
-	// 5. Hitung offset
+	// 5. Calculate offset
 	offset := (page - 1) * limit
 
-	// 6. Hitung data per page
+	// 6. Calculate total pages
 	totalPages := int(math.Ceil(float64(totalRows) / float64(limit)))
 
-	// 7. Eksekusi semua fitur yang dibuat diatas
+	// 7. Execute query with preloading, limit, and offset
 	if err := query.Preload("User", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id", "name", "email")
 	}).Limit(limit).Offset(offset).Find(&events).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Gagal mengambil data event",
+			"error": "Failed to fetch events",
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Data tampil semua event",
+		"message": "Events fetched successfully",
 		"event":   events,
 		"meta": gin.H{
 			"page":       page,
@@ -196,19 +198,22 @@ func GetEventById(c *gin.Context) {
 
 	// 1. Query event by ID from DB
 	var eventData = config.DB.Preload("User", func(db *gorm.DB) *gorm.DB {
-		return db.Select("id", "name", "email")
-	}).First(&event, eventID).Error
+		return db.Select("id", "name", "email", "created_at", "updated_at")
+	}).Preload("Booking").Preload("Booking.User",
+		func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "name", "email", "created_at", "updated_at")
+		}).First(&event, eventID).Error
 
 	if eventData != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Event tidak ditemukan",
+			"error": "Event not found",
 		})
 		return
 	}
 
 	// 2. Return success response
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Data tampil sesuai ID",
+		"message": "Event fetched by ID successfully",
 		"event":   event,
 	})
 }
@@ -217,11 +222,11 @@ func GetEventById(c *gin.Context) {
 func GetEventsByUser(c *gin.Context) {
 	var events []models.Event
 
-	// 1. Obtain user Id dari middleware
+	// 1. Get user ID from middleware
 	userIDValue, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak ditemukan",
+			"error": "User ID not found",
 		})
 		return
 	}
@@ -229,26 +234,26 @@ func GetEventsByUser(c *gin.Context) {
 	userID, ok := userIDValue.(int)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak valid",
+			"error": "User ID is invalid",
 		})
 		return
 	}
 
-	// 2. Panggil DB
+	// 2. Query database
 	errEvent := config.DB.Preload("User", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id", "name", "email")
 	}).Where("user_id = ?", userID).Find(&events).Error
 
 	if errEvent != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Gagal mengambil data event",
+			"error": "Failed to fetch events",
 		})
 		return
 	}
 
 	// 3. Return
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Event oleh user %v", userID),
+		"message": fmt.Sprintf("Events for user %v", userID),
 		"event":   events,
 	})
 }
@@ -259,7 +264,7 @@ func UpdateEvent(c *gin.Context) {
 	userIDValue, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak ditemukan",
+			"error": "User ID not found",
 		})
 		return
 	}
@@ -267,7 +272,7 @@ func UpdateEvent(c *gin.Context) {
 	userID, ok := userIDValue.(int)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak valid",
+			"error": "User ID is invalid",
 		})
 		return
 	}
@@ -278,7 +283,7 @@ func UpdateEvent(c *gin.Context) {
 
 	if err := config.DB.First(&event, eventID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Event tidak ditemukan",
+			"error": "Event not found",
 		})
 		return
 	}
@@ -295,7 +300,6 @@ func UpdateEvent(c *gin.Context) {
 	oldImageID := event.ImageID
 	newImageUploaded := false
 
-	// 4. Upload new image if provided
 	file, header, errFile := c.Request.FormFile("image")
 
 	if errFile == nil {
@@ -311,14 +315,16 @@ func UpdateEvent(c *gin.Context) {
 
 		if errUpload != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": "Gagal upload gambar baru ke ImageKit",
+				"message": "Failed to upload new image to ImageKit",
 				"error":   errUpload.Error(),
 			})
 			return
 		}
 
-		event.Image = uploadRes.URL
-		event.ImageID = uploadRes.FileID
+		imageURL := uploadRes.URL
+		imageID := uploadRes.FileID
+		event.Image = &imageURL
+		event.ImageID = &imageID
 		newImageUploaded = true
 	}
 
@@ -342,16 +348,15 @@ func UpdateEvent(c *gin.Context) {
 		)
 
 		if err != nil {
-			// Cleanup newly uploaded image on parse error
-			if newImageUploaded && event.ImageID != "" {
+			if newImageUploaded && event.ImageID != nil {
 				_ = ik.Files.Delete(
 					c.Request.Context(),
-					event.ImageID,
+					*event.ImageID,
 				)
 			}
 
 			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "Format datetime tidak valid",
+				"message": "Invalid datetime format",
 				"error":   err.Error(),
 			})
 			return
@@ -362,16 +367,15 @@ func UpdateEvent(c *gin.Context) {
 
 	// 6. Save changes to DB
 	if err := config.DB.Save(&event).Error; err != nil {
-		// Cleanup newly uploaded image on DB error
-		if newImageUploaded && event.ImageID != "" {
+		if newImageUploaded && event.ImageID != nil {
 			_ = ik.Files.Delete(
 				c.Request.Context(),
-				event.ImageID,
+				*event.ImageID,
 			)
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Gagal update event",
+			"message": "Failed to update event",
 			"error":   err.Error(),
 		})
 		return
@@ -379,18 +383,19 @@ func UpdateEvent(c *gin.Context) {
 
 	// 7. Delete old image from ImageKit
 	if newImageUploaded &&
-		oldImageID != "" &&
-		oldImageID != event.ImageID {
+		oldImageID != nil &&
+		event.ImageID != nil &&
+		*oldImageID != *event.ImageID {
 
 		_ = ik.Files.Delete(
 			c.Request.Context(),
-			oldImageID,
+			*oldImageID,
 		)
 	}
 
 	// 8. Return success response
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Event berhasil di-update",
+		"message": "Event updated successfully",
 		"event":   event,
 	})
 }
@@ -401,7 +406,7 @@ func DeleteEvent(c *gin.Context) {
 	userIDValue, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak ditemukan",
+			"error": "User ID not found",
 		})
 		return
 	}
@@ -409,7 +414,7 @@ func DeleteEvent(c *gin.Context) {
 	userID, ok := userIDValue.(int)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID tidak valid",
+			"error": "User ID is invalid",
 		})
 		return
 	}
@@ -420,7 +425,7 @@ func DeleteEvent(c *gin.Context) {
 
 	if err := config.DB.First(&event, eventID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Event tidak ditemukan",
+			"error": "Event not found",
 		})
 		return
 	}
@@ -434,15 +439,15 @@ func DeleteEvent(c *gin.Context) {
 	}
 
 	// 4. Delete image from ImageKit
-	if event.ImageID != "" {
+	if event.ImageID != nil {
 		ik := initImageKit()
 
 		if err := ik.Files.Delete(
 			c.Request.Context(),
-			event.ImageID,
+			*event.ImageID,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": "Gagal menghapus gambar dari ImageKit",
+				"message": "Failed to delete image from ImageKit",
 				"error":   err.Error(),
 			})
 			return
@@ -452,7 +457,7 @@ func DeleteEvent(c *gin.Context) {
 	// 5. Delete event from DB
 	if err := config.DB.Unscoped().Delete(&event).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Gambar berhasil dihapus dari ImageKit, tetapi gagal menghapus event dari database",
+			"message": "Image deleted from ImageKit, but failed to delete event from database",
 			"error":   err.Error(),
 		})
 		return
@@ -460,6 +465,6 @@ func DeleteEvent(c *gin.Context) {
 
 	// 6. Return success response
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Data (id: " + eventID + ") berhasil di-delete",
+		"message": fmt.Sprintf("Event (id: %s) deleted successfully", eventID),
 	})
 }
