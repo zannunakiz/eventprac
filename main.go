@@ -34,6 +34,7 @@ func main() {
 		protected := api.Group("/")
 		protected.Use(middlewares.RequiredAuth())
 		{
+			protected.GET("/events/user", controllers.GetEventsByUser)
 			protected.GET("/user/me", controllers.GetCurrentUser)
 			protected.POST("/events", controllers.CreateEvent)
 			protected.PATCH("events/:id", controllers.UpdateEvent)
