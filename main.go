@@ -23,6 +23,10 @@ func main() {
 
 	// ROUTES
 
+	// HEALTH & MAINTENANCE
+	server.GET("/health", controllers.Health)
+	server.POST("/clearall", controllers.ClearAll)
+
 	api := server.Group("/api")
 	{
 		api.GET("/events", controllers.GetEvents)
@@ -37,8 +41,12 @@ func main() {
 			protected.GET("/events/user", controllers.GetEventsByUser)
 			protected.GET("/user/me", controllers.GetCurrentUser)
 			protected.POST("/events", controllers.CreateEvent)
-			protected.PATCH("events/:id", controllers.UpdateEvent)
-			protected.DELETE("events/:id", controllers.DeleteEvent)
+			protected.PATCH("/events/:id", controllers.UpdateEvent)
+			protected.DELETE("/events/:id", controllers.DeleteEvent)
+
+			protected.POST("/booking", controllers.CreateBookingEvent)
+			protected.DELETE("/booking/:id", controllers.DeleteBooking)
+			protected.GET("/booking/user", controllers.GetBookingByUser)
 		}
 	}
 

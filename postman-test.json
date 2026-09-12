@@ -1,150 +1,1853 @@
 {
   "info": {
-    "_postman_id": "e9f8d7c6-b5a4-3210-9876-54321fedcba0",
-    "name": "Eventprac - Full Automated Test Suite",
+    "_postman_id": "e9f8d7c6-b5a4-3210-9876-e2e5a7f001",
+    "name": "Eventprac - Full E2E Automated Test Suite",
+    "description": "End-to-end automated suite covering the entire Eventprac API. Run top-to-bottom in the Collection Runner. Steps are ordered: Health -> Auth -> Events -> Ownership -> Bookings -> Teardown -> ClearAll. NOTE: set the collection variable clearAllCode to your CLEAR_ALL_CODE from .env before running, or the final 'clear DB' step will fail. Create/Update Event use multipart form-data (not JSON).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Step 1: Prepare Test Data (Expect SUCCESS 200)",
-      "event": [{"listen":"prerequest","script":{"type":"text/javascript","exec":["pm.collectionVariables.set('ownerEmail', 'owner_' + Date.now() + '@example.com');","pm.collectionVariables.set('ownerPassword', 'password123');","pm.collectionVariables.set('secondEmail', 'second_' + Date.now() + '@example.com');","pm.collectionVariables.set('secondPassword', 'password123');"]}},{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Test data prepared', function () { pm.expect(pm.collectionVariables.get('ownerEmail')).to.match(/@example\\.com$/); });"]}}],
-      "request":{"method":"GET","header":[],"url":{"raw":"{{baseUrl}}/api/events","host":["{{baseUrl}}"],"path":["api","events"]}},"response":[]
+      "name": "01 - Server Health",
+      "item": [
+        {
+          "name": "Test 1: Server health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Overall status is healthy', function () { pm.expect(r.status).to.eql('healthy'); });",
+                  "pm.test('Database service up', function () { pm.expect(r.services.database.status).to.eql('up'); });",
+                  "pm.test('Server service up', function () { pm.expect(r.services.server.status).to.eql('up'); });",
+                  "pm.test('ImageKit service up', function () { pm.expect(r.services.imagekit.status).to.eql('up'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 2: Register Owner - Valid Data (Expect SUCCESS 201)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Owner registered', function () { pm.response.to.have.status(201); });","const r=pm.response.json(); pm.test('User ID returned', function () { pm.expect(r.user.id || r.user.ID).to.exist; });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Owner Tester\",\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}},"response":[]
+      "name": "02 - User Registration & Authentication",
+      "item": [
+        {
+          "name": "Test 2: Register owner user with valid data",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('ownerEmail', 'owner_' + Date.now() + '@example.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 201', function () { pm.response.to.have.status(201); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Message equals expected', function () { pm.expect(r.message).to.eql('User registered successfully'); });",
+                  "pm.test('User object has id', function () { pm.expect(r.user.id).to.exist; });",
+                  "pm.test('No password field leaked', function () { pm.expect(r.user.password).to.be.undefined; });",
+                  "if (r.user && r.user.id) { pm.collectionVariables.set('ownerUserId', String(r.user.id)); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Owner Tester\",\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/register"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 3: Reject duplicate email registration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error mentions already registered', function () { pm.expect(pm.response.json().error).to.include('already registered'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Duplicate\",\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/register"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 4: Reject invalid email format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Invalid\",\n  \"email\": \"not-an-email\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/register"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 3: Register User - Duplicate Email (Expect FAILED 400)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Duplicate registration rejected', function () { pm.response.to.have.status(400); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\"name\":\"Duplicate\",\"email\":\"{{ownerEmail}}\",\"password\":\"password123\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}},"response":[]
+      "name": "02b - Validation, Login & Current User",
+      "item": [
+        {
+          "name": "Test 5: Reject too-short password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"ShortPw\",\n  \"email\": \"shortpw@example.com\",\n  \"password\": \"123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/register"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 6: Reject empty registration payload",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/api/user/register"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 7: Owner login with valid credentials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Token returned', function () { pm.expect(r.token).to.be.a('string').and.not.empty; });",
+                  "pm.test('Logged in user email matches owner', function () { pm.expect(r.user.email).to.eql(pm.collectionVariables.get('ownerEmail')); });",
+                  "if (r.token) { pm.collectionVariables.set('ownerToken', r.token); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 8: Reject login with wrong password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"wrong-password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 9: Reject login with unknown email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"missing@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 10: Reject login missing password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 11: Fetch current user with valid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Current user email matches owner', function () { pm.expect(pm.response.json().user.email).to.eql(pm.collectionVariables.get('ownerEmail')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/user/me"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 12: Reject current user request without token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/user/me"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 13: Reject current user request with invalid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid.jwt.token",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/user/me"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 14: Reject malformed Authorization header",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{ownerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/me"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 4: Register User - Invalid Email (Expect FAILED 400)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Invalid email rejected', function () { pm.response.to.have.status(400); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\"name\":\"Invalid\",\"email\":\"not-an-email\",\"password\":\"password123\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}},"response":[]
+      "name": "03 - Events: Public Reads & Auth Gating",
+      "item": [
+        {
+          "name": "Test 15: Fetch public event list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Event is an array', function () { pm.expect(r.event).to.be.an('array'); });",
+                  "pm.test('Meta present', function () { pm.expect(r.meta).to.exist; });",
+                  "pm.test('Meta has totalRows and totalPages', function () { pm.expect(r.meta.totalRows).to.exist; pm.expect(r.meta.totalPages).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 16: Reject fetching non-existent event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events/999999999"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 17: Reject own-events request without token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events/user"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 18: Reject event creation with invalid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid.jwt.token",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Should Not Create",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Invalid auth",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Nowhere",
+                  "type": "text"
+                },
+                {
+                  "key": "datetime",
+                  "value": "2026-09-12T15:54:55+07:00",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 5: Register User - Empty Payload (Expect FAILED 400)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Empty registration rejected', function () { pm.response.to.have.status(400); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}},"response":[]
+      "name": "04 - Events: Owner CRUD (multipart form-data)",
+      "item": [
+        {
+          "name": "Test 19: Create event with valid multipart data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 201', function () { pm.response.to.have.status(201); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Event id exists', function () { pm.expect(r.event.ID).to.exist; });",
+                  "pm.test('Event name stored', function () { pm.expect(r.event.name).to.eql('E2E Automated Event'); });",
+                  "pm.test('No image uploaded, image is null', function () { pm.expect(r.event.image).to.be.null; });",
+                  "if (r.event && r.event.ID) { pm.collectionVariables.set('ownerEventId', String(r.event.ID)); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "E2E Automated Event",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Created during full scenario test",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Jakarta",
+                  "type": "text"
+                },
+                {
+                  "key": "datetime",
+                  "value": "2026-09-12T15:54:55+07:00",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 20: Reject event creation with invalid datetime",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error mentions datetime', function () { pm.expect(pm.response.json().message).to.include('datetime'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Bad Date",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Invalid datetime",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Nowhere",
+                  "type": "text"
+                },
+                {
+                  "key": "datetime",
+                  "value": "not-a-date",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 21: Fetch created event by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Returns the created event id', function () { pm.expect(String(r.event.ID)).to.eql(pm.collectionVariables.get('ownerEventId')); });",
+                  "pm.test('Event owner matches ownerUserId', function () { pm.expect(String(r.event.User.ID)).to.eql(pm.collectionVariables.get('ownerUserId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 22: Search events finds created event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Search results are an array', function () { pm.expect(r.event).to.be.an('array'); });",
+                  "const ids = r.event.map(function (e) { return String(e.ID); });",
+                  "pm.test('Search response contains owner event', function () { pm.expect(ids).to.include(pm.collectionVariables.get('ownerEventId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events?search=Automated"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 23: Paginate event list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Meta limit is 2', function () { pm.expect(r.meta.limit).to.eql(2); });",
+                  "pm.test('Meta page is 1', function () { pm.expect(r.meta.page).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events?page=1&limit=2"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 24: Fetch owner own events",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "const ids = r.event.map(function (e) { return String(e.ID); });",
+                  "pm.test('Own events include owner event', function () { pm.expect(ids).to.include(pm.collectionVariables.get('ownerEventId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/user"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 25: Partially update event as owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Name updated', function () { pm.expect(r.event.name).to.eql('Updated E2E Event'); });",
+                  "pm.test('Location updated', function () { pm.expect(r.event.location).to.eql('Bandung'); });",
+                  "pm.test('Description preserved (partial update)', function () { pm.expect(r.event.description).to.eql('Created during full scenario test'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Updated E2E Event",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Bandung",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 26: Reject event update with invalid datetime",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error mentions datetime', function () { pm.expect(pm.response.json().message).to.include('datetime'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "datetime",
+                  "value": "bad-date",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 27: Reject updating non-existent event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Not Found",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/999999999"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 28: Reject event update with invalid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid.jwt.token",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Hack",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 29: Reject deleting non-existent event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/999999999"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 6: Login User - Valid Credentials (Expect SUCCESS 200)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Owner login succeeded', function () { pm.response.to.have.status(200); });","const r=pm.response.json(); pm.test('Token returned', function () { pm.expect(r.token).to.be.a('string').and.not.empty; });","if(r.token) pm.collectionVariables.set('ownerToken',r.token); if(r.user&&(r.user.id||r.user.ID)) pm.collectionVariables.set('ownerUserId',String(r.user.id||r.user.ID));"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\"email\":\"{{ownerEmail}}\",\"password\":\"{{ownerPassword}}\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/login","host":["{{baseUrl}}"],"path":["api","user","login"]}},"response":[]
+      "name": "05 - Second User & Ownership Enforcement",
+      "item": [
+        {
+          "name": "Test 30: Register second user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('secondEmail', 'second_' + Date.now() + '@example.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Second user id present', function () { pm.expect(pm.response.json().user.id).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Second Tester\",\n  \"email\": \"{{secondEmail}}\",\n  \"password\": \"{{secondPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/register"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 31: Login as second user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Second user email matches', function () { pm.expect(r.user.email).to.eql(pm.collectionVariables.get('secondEmail')); });",
+                  "if (r.token) { pm.collectionVariables.set('secondToken', r.token); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{secondEmail}}\",\n  \"password\": \"{{secondPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 32: Fetch current user as second user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Second user email matches', function () { pm.expect(pm.response.json().user.email).to.eql(pm.collectionVariables.get('secondEmail')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/user/me"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 33: Reject event update by non-owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 403', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Error mentions event creator', function () { pm.expect(pm.response.json().error).to.include('event creator'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Hijack",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 34: Reject event deletion by non-owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 7: Login User - Wrong Password (Expect FAILED 401)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Wrong password rejected', function () { pm.response.to.have.status(401); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\"email\":\"{{ownerEmail}}\",\"password\":\"wrong-password\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/login","host":["{{baseUrl}}"],"path":["api","user","login"]}},"response":[]
+      "name": "06 - Bookings",
+      "item": [
+        {
+          "name": "Test 35: Reject booking creation without token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"081234567890\",\n  \"eventId\": 1\n}"
+            },
+            "url": "{{baseUrl}}/api/booking"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 36: Reject booking with missing required fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/api/booking"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 37: Reject booking a non-existent event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('Error mentions event not found', function () { pm.expect(pm.response.json().error).to.include('Event not found'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"081234567890\",\n  \"eventId\": 999999999\n}"
+            },
+            "url": "{{baseUrl}}/api/booking"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 38: Reject booking with invalid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid.jwt.token",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"081234567890\",\n  \"eventId\": 1\n}"
+            },
+            "url": "{{baseUrl}}/api/booking"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 39: Create booking for owner event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 201', function () { pm.response.to.have.status(201); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Booking id present', function () { pm.expect(r.booking.ID).to.exist; });",
+                  "pm.test('Booking code pattern BK-', function () { pm.expect(r.booking.bookingCode).to.match(/^BK-/); });",
+                  "pm.test('Booking event preloaded', function () { pm.expect(r.booking.event.ID).to.exist; });",
+                  "if (r.booking && r.booking.ID) { pm.collectionVariables.set('bookingId', String(r.booking.ID)); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"081234567890\",\n  \"eventId\": {{ownerEventId}}\n}"
+            },
+            "url": "{{baseUrl}}/api/booking"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 40: Reject duplicate booking for same event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error mentions already booked', function () { pm.expect(pm.response.json().error).to.include('already booked'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"081234567890\",\n  \"eventId\": {{ownerEventId}}\n}"
+            },
+            "url": "{{baseUrl}}/api/booking"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 41: Reject own-bookings request without token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/booking/user"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 42: Fetch second user bookings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Booking array returned', function () { pm.expect(r.booking).to.be.an('array'); });",
+                  "const ids = r.booking.map(function (b) { return String(b.ID); });",
+                  "pm.test('Includes created booking', function () { pm.expect(ids).to.include(pm.collectionVariables.get('bookingId')); });",
+                  "pm.test('Event relation preloaded', function () { pm.expect(r.booking[0].event).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/booking/user"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 43: Fetch event including its bookings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('listBooking present', function () { pm.expect(r.event.listBooking).to.be.an('array'); });",
+                  "pm.test('At least one booking on the event', function () { pm.expect(r.event.listBooking.length).to.be.at.least(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 44: Reject deleting non-existent booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/booking/999999999"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 45: Reject booking deletion by non-booker",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 403', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Error mentions another user', function () { pm.expect(pm.response.json().error).to.include('another user'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/booking/{{bookingId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 46: Delete booking as its owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Message confirms deletion', function () { pm.expect(pm.response.json().message).to.include('deleted'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/booking/{{bookingId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 47: Confirm booking was removed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "const ids = r.booking.map(function (b) { return String(b.ID); });",
+                  "pm.test('Deleted booking is gone', function () { pm.expect(ids).to.not.include(pm.collectionVariables.get('bookingId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/booking/user"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 8: Login User - Unknown Email (Expect FAILED 401)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Unknown email rejected', function () { pm.response.to.have.status(401); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\"email\":\"missing_{{$randomInt}}@example.com\",\"password\":\"password123\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/login","host":["{{baseUrl}}"],"path":["api","user","login"]}},"response":[]
+      "name": "07 - Event Teardown (Owner)",
+      "item": [
+        {
+          "name": "Test 48: Fully update event with valid data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Full update persisted', function () { pm.expect(r.event.name).to.eql('Final E2E Event'); });",
+                  "pm.test('Description updated', function () { pm.expect(r.event.description).to.eql('Final description'); });",
+                  "pm.test('Location updated', function () { pm.expect(r.event.location).to.eql('New York'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Final E2E Event",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Final description",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "New York",
+                  "type": "text"
+                },
+                {
+                  "key": "datetime",
+                  "value": "2026-09-13T10:00:00+07:00",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 49: Delete event as owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Message confirms event deleted', function () { pm.expect(pm.response.json().message).to.include('deleted'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 50: Confirm deleted event is gone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events/{{ownerEventId}}"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name":"Step 9: Get Current User - Valid Token (Expect SUCCESS 200)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Current user returned', function () { pm.response.to.have.status(200); });"]}}],
-      "request":{"method":"GET","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"url":{"raw":"{{baseUrl}}/api/user/me","host":["{{baseUrl}}"],"path":["api","user","me"]}},"response":[]
-    },
-    {
-      "name":"Step 10: Get Current User - Missing Token (Expect FAILED 401)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Missing token rejected', function () { pm.response.to.have.status(401); });"]}}],
-      "request":{"method":"GET","header":[],"url":{"raw":"{{baseUrl}}/api/user/me","host":["{{baseUrl}}"],"path":["api","user","me"]}},"response":[]
-    },
-    {
-      "name":"Step 11: Get Current User - Invalid Token (Expect FAILED 401)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Invalid token rejected', function () { pm.response.to.have.status(401); });"]}}],
-      "request":{"method":"GET","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"invalid.jwt.token","type":"string"}]},"url":{"raw":"{{baseUrl}}/api/user/me","host":["{{baseUrl}}"],"path":["api","user","me"]}},"response":[]
-    },
-    {
-      "name":"Step 12: Get Events - Public List (Expect SUCCESS 200)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Events returned', function () { pm.response.to.have.status(200); });"]}}],
-      "request":{"method":"GET","header":[],"url":{"raw":"{{baseUrl}}/api/events","host":["{{baseUrl}}"],"path":["api","events"]}},"response":[]
-    },
-    {
-      "name":"Step 13: Get Event - Non-existent ID (Expect FAILED 404)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Missing event rejected', function () { pm.response.to.have.status(404); });"]}}],
-      "request":{"method":"GET","header":[],"url":{"raw":"{{baseUrl}}/api/events/999999999","host":["{{baseUrl}}"],"path":["api","events","999999999"]}},"response":[]
-    },
-    {
-      "name":"Step 14: Create Event - Valid Data (Expect SUCCESS 201)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Event created', function () { pm.response.to.have.status(201); });","const r=pm.response.json(); const id=r.event&&(r.event.ID||r.event.id); pm.test('Event ID returned', function () { pm.expect(id).to.exist; }); if(id) pm.collectionVariables.set('ownerEventId',String(id));"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"body":{"mode":"raw","raw":"{\"name\":\"Automated Event {{$randomInt}}\",\"description\":\"Created during full scenario test\",\"location\":\"Jakarta\",\"datetime\":\"2026-09-08T15:54:55+07:00\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/events","host":["{{baseUrl}}"],"path":["api","events"]}},"response":[]
-    },
-    {
-      "name":"Step 15: Create Event - Empty Payload (Expect FAILED 400)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Empty event rejected', function () { pm.response.to.have.status(400); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"body":{"mode":"raw","raw":"{}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/events","host":["{{baseUrl}}"],"path":["api","events"]}},"response":[]
-    },
-    {
-      "name":"Step 16: Create Event - Invalid Token (Expect FAILED 401)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Invalid token rejected', function () { pm.response.to.have.status(401); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"auth":{"type":"bearer","bearer":[{"key":"token","value":"invalid.jwt.token","type":"string"}]},"body":{"mode":"raw","raw":"{\"name\":\"Should Not Create\",\"description\":\"Invalid auth\",\"location\":\"Nowhere\",\"datetime\":\"2026-09-08T15:54:55+07:00\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/events","host":["{{baseUrl}}"],"path":["api","events"]}},"response":[]
-    },
-    {
-      "name":"Step 17: Get Event - Created Event (Expect SUCCESS 200)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Created event returned', function () { pm.response.to.have.status(200); });"]}}],
-      "request":{"method":"GET","header":[],"url":{"raw":"{{baseUrl}}/api/events/{{ownerEventId}}","host":["{{baseUrl}}"],"path":["api","events","{{ownerEventId}}"]}},"response":[]
-    },
-    {
-      "name":"Step 18: Update Event - Owner Valid Data (Expect SUCCESS 200)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Event updated', function () { pm.response.to.have.status(200); });"]}}],
-      "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"body":{"mode":"raw","raw":"{\"name\":\"Updated Automated Event\",\"description\":\"Updated description\",\"location\":\"Bandung\",\"datetime\":\"2026-09-09T15:54:55+07:00\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/events/{{ownerEventId}}","host":["{{baseUrl}}"],"path":["api","events","{{ownerEventId}}"]}},"response":[]
-    },
-    {
-      "name":"Step 19: Update Event - Empty Payload (Expect FAILED 400)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Empty update rejected', function () { pm.response.to.have.status(400); });"]}}],
-      "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"body":{"mode":"raw","raw":"{}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/events/{{ownerEventId}}","host":["{{baseUrl}}"],"path":["api","events","{{ownerEventId}}"]}},"response":[]
-    },
-    {
-      "name":"Step 20: Update Event - Non-existent ID (Expect FAILED 404)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Missing update rejected', function () { pm.response.to.have.status(404); });"]}}],
-      "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"body":{"mode":"raw","raw":"{\"name\":\"Not Found\",\"description\":\"Not Found\",\"location\":\"Nowhere\",\"datetime\":\"2026-09-09T15:54:55+07:00\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/events/999999999","host":["{{baseUrl}}"],"path":["api","events","999999999"]}},"response":[]
-    },
-    {
-      "name":"Step 21: Register User - Second Owner (Expect SUCCESS 201)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Second user registered', function () { pm.response.to.have.status(201); });"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\"name\":\"Second Tester\",\"email\":\"{{secondEmail}}\",\"password\":\"{{secondPassword}}\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}},"response":[]
-    },
-    {
-      "name":"Step 22: Login User - Second Owner (Expect SUCCESS 200)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Second login succeeded', function () { pm.response.to.have.status(200); });","const r=pm.response.json(); if(r.token) pm.collectionVariables.set('secondToken',r.token);"]}}],
-      "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"body":{"mode":"raw","raw":"{\"email\":\"{{secondEmail}}\",\"password\":\"{{secondPassword}}\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/user/login","host":["{{baseUrl}}"],"path":["api","user","login"]}},"response":[]
-    },
-    {
-      "name":"Step 23: Update Event - Non-owner (Expect FAILED 403)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Non-owner update rejected', function () { pm.response.to.have.status(403); });"]}}],
-      "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json","type":"text"}],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{secondToken}}","type":"string"}]},"body":{"mode":"raw","raw":"{\"name\":\"Unauthorized Update\",\"description\":\"Must not update\",\"location\":\"Nowhere\",\"datetime\":\"2026-09-10T15:54:55+07:00\"}","options":{"raw":{"language":"json"}}},"url":{"raw":"{{baseUrl}}/api/events/{{ownerEventId}}","host":["{{baseUrl}}"],"path":["api","events","{{ownerEventId}}"]}},"response":[]
-    },
-    {
-      "name":"Step 24: Delete Event - Non-owner (Expect FAILED 403)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Non-owner delete rejected', function () { pm.response.to.have.status(403); });"]}}],
-      "request":{"method":"DELETE","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{secondToken}}","type":"string"}]},"url":{"raw":"{{baseUrl}}/api/events/{{ownerEventId}}","host":["{{baseUrl}}"],"path":["api","events","{{ownerEventId}}"]}},"response":[]
-    },
-    {
-      "name":"Step 25: Delete Event - Owner Valid Data (Expect SUCCESS 200)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Event deleted', function () { pm.response.to.have.status(200); });"]}}],
-      "request":{"method":"DELETE","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"url":{"raw":"{{baseUrl}}/api/events/{{ownerEventId}}","host":["{{baseUrl}}"],"path":["api","events","{{ownerEventId}}"]}},"response":[]
-    },
-    {
-      "name":"Step 26: Delete Event - Non-existent ID (Expect FAILED 404)",
-      "event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Missing delete rejected', function () { pm.response.to.have.status(404); });"]}}],
-      "request":{"method":"DELETE","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{ownerToken}}","type":"string"}]},"url":{"raw":"{{baseUrl}}/api/events/999999999","host":["{{baseUrl}}"],"path":["api","events","999999999"]}},"response":[]
+      "name": "08 - Maintenance: Clear All (Final DB wipe)",
+      "item": [
+        {
+          "name": "Test 51: Reject clear-all with empty payload",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/clearall"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 52: Reject clear-all with wrong code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 403', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Error mentions invalid code', function () { pm.expect(pm.response.json().error).to.include('clear-all code'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clearall-code\": \"wrong-code\"\n}"
+            },
+            "url": "{{baseUrl}}/clearall"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 53: Clear all data and wipe database",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('Message confirms all cleared', function () { pm.expect(r.message).to.include('All data cleared'); });",
+                  "pm.test('Three tables cleared', function () { pm.expect(r.database.tablesCleared.length).to.eql(3); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clearall-code\": \"{{clearAllCode}}\"\n}"
+            },
+            "url": "{{baseUrl}}/clearall"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 54: Confirm database empty after clear",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect SUCCESS 200', function () { pm.response.to.have.status(200); });",
+                  "const r = pm.response.json();",
+                  "pm.test('No events remain', function () { pm.expect(r.event.length).to.eql(0); });",
+                  "pm.test('totalRows is 0', function () { pm.expect(r.meta.totalRows).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events"
+          },
+          "response": []
+        },
+        {
+          "name": "Test 55: Confirm user was wiped after clear",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expect FAILED 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/user/login"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
-    {"key":"baseUrl","value":"http://localhost:8080","type":"string"},
-    {"key":"ownerEmail","value":"","type":"string"},
-    {"key":"ownerPassword","value":"password123","type":"string"},
-    {"key":"ownerToken","value":"","type":"string"},
-    {"key":"ownerUserId","value":"","type":"string"},
-    {"key":"ownerEventId","value":"","type":"string"},
-    {"key":"secondEmail","value":"","type":"string"},
-    {"key":"secondPassword","value":"password123","type":"string"},
-    {"key":"secondToken","value":"","type":"string"}
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "ownerEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerPassword",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "ownerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerEventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "secondEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "secondPassword",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "secondToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clearAllCode",
+      "value": "master-clear-all-code-909",
+      "type": "string"
+    }
   ]
 }

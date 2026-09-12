@@ -12,11 +12,11 @@ import (
 func RequiredAuth() gin.HandlerFunc {
 	return func(context *gin.Context) {
 
-		// Check token exist
+		// Check token exists
 		tokenString := context.GetHeader("Authorization")
 		if tokenString == "" || !strings.HasPrefix(tokenString, "Bearer ") {
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Akses ditolak, missing token!",
+				"error": "Access denied, missing token!",
 			})
 			return
 		}
@@ -33,7 +33,7 @@ func RequiredAuth() gin.HandlerFunc {
 			context.Next()
 		} else {
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Token tidak valid",
+				"error": "Invalid token",
 			})
 		}
 	}

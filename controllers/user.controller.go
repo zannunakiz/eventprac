@@ -38,7 +38,7 @@ func RegisterUser(context *gin.Context) {
 	var existingUser models.User
 	if config.DB.Where("email = ?", input.Email).First(&existingUser).Error == nil {
 		context.JSON(http.StatusBadRequest, gin.H{
-			"error": "Email mungkin sudah terdaftar",
+			"error": "Email is already registered",
 		})
 		return
 	}
@@ -47,7 +47,7 @@ func RegisterUser(context *gin.Context) {
 	hashedPassword, errHash := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if errHash != nil {
 		context.JSON(http.StatusBadRequest, gin.H{
-			"error": "Gagal enkripsi password",
+			"error": "Failed to hash password",
 		})
 		return
 	}
@@ -62,19 +62,18 @@ func RegisterUser(context *gin.Context) {
 	userCreated := config.DB.Create(&user).Error
 	if userCreated != nil {
 		context.JSON(http.StatusBadRequest, gin.H{
-			"error": "Email mungkin sudah terdaftar",
+			"error": "Failed to create user, email might be registered",
 		})
 		return
 	}
 
 	// Return
 	context.JSON(http.StatusCreated, gin.H{
-		"message": "User berhasil terdaftar",
+		"message": "User registered successfully",
 		"user": gin.H{
-			"id":     user.ID,
-			"name":   user.Name,
-			"email":  user.Email,
-			"events": user.Events,
+			"id":    user.ID,
+			"name":  user.Name,
+			"email": user.Email,
 		},
 	})
 }
@@ -91,7 +90,7 @@ func LoginUser(context *gin.Context) {
 		return
 	}
 
-	// Check user exist
+	// Check user exists
 	var user models.User
 	userData := config.DB.Where("email = ?", input.Email).First(&user).Error
 	if userData != nil {
@@ -110,10 +109,10 @@ func LoginUser(context *gin.Context) {
 		return
 	}
 
-	// Token JWT
+	// JWT Token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(), // Expire token 7 days
+		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(), // Token expires in 7 days
 	})
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
@@ -130,17 +129,15 @@ func LoginUser(context *gin.Context) {
 		"message": "Login success",
 		"token":   tokenString,
 		"user": gin.H{
-			"id":     user.ID,
-			"name":   user.Name,
-			"email":  user.Email,
-			"events": user.Events,
+			"id":    user.ID,
+			"name":  user.Name,
+			"email": user.Email,
 		},
 	})
-
 }
 
 func GetCurrentUser(context *gin.Context) {
-	// Ambil UserId
+	// Get UserId
 	userId, exists := context.Get("userId")
 	if !exists {
 		context.JSON(http.StatusUnauthorized, gin.H{
@@ -149,7 +146,7 @@ func GetCurrentUser(context *gin.Context) {
 		return
 	}
 
-	// Ambil data User
+	// Get User data
 	var user models.User
 
 	userData := config.DB.Select("id", "name", "email").First(&user, userId).Error
@@ -161,13 +158,11 @@ func GetCurrentUser(context *gin.Context) {
 	}
 
 	// Return
-
 	context.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":     user.ID,
-			"name":   user.Name,
-			"email":  user.Email,
-			"events": user.Events,
+			"id":    user.ID,
+			"name":  user.Name,
+			"email": user.Email,
 		},
 	})
 }
